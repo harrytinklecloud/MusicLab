@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>JAGANSHA RMA — Sound Garden</title>
+<style>
+  :root{
+    --bg0:#05060d; --bg1:#0b1026; --ink:#e8ecff; --dim:#8a93c7;
+    --acc:#7af0d0; --acc2:#b78bff; --acc3:#ff8bc8; --line:rgba(255,255,255,.08);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  html,body{height:100%; margin:0}
+  body{
+    background:radial-gradient(1200px 800px at 70% -10%, #16204d 0%, var(--bg1) 40%, var(--bg0) 100%);
+    color:var(--ink); font:14px/1.5 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+    overflow:hidden; user-select:none;
+  }
+  #stage{position:fixed; inset:0; display:block; touch-action:none}
+  /* Top bar */
+  header{
+    position:fixed; top:0; left:0; right:0; z-index:5; display:flex; align-items:center; gap:14px;
+    padding:14px 18px; pointer-events:none;
+  }
+  .brand{display:flex; align-items:baseline; gap:10px; pointer-events:none}
+  .brand b{
+    font-weight:800; letter-spacing:.22em; font-size:18px;
+    background:linear-gradient(90deg,var(--acc),var(--acc2) 60%,var(--acc3));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .brand span{color:var(--dim); letter-spacing:.32em; font-size:11px; text-transform:uppercase}
+  .spacer{flex:1}
+  .pill{
+    pointer-events:auto; color:var(--dim); font-size:12px; padding:7px 11px;
+    border:1px solid var(--line); border-radius:999px; background:rgba(255,255,255,.03);
+    backdrop-filter:blur(8px);
+  }
+  .pill b{color:var(--ink); font-variant-numeric:tabular-nums}
+
+  /* Control dock */
+  #dock{
+    position:fixed; left:50%; bottom:18px; transform:translateX(-50%); z-index:6;
+    display:flex; gap:10px; align-items:stretch; padding:10px;
+    border:1px solid var(--line); border-radius:18px;
+    background:linear-gradient(180deg,rgba(20,26,55,.72),rgba(10,13,32,.72));
+    backdrop-filter:blur(14px); box-shadow:0 18px 50px rgba(0,0,0,.5);
+    max-width:calc(100vw - 24px); flex-wrap:wrap; justify-content:center;
+  }
+  .ctl{display:flex; flex-direction:column; gap:5px; min-width:84px}
+  .ctl > label{font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--dim)}
+  .seg{display:flex; border:1px solid var(--line); border-radius:11px; overflow:hidden; background:rgba(0,0,0,.25)}
+  .seg button{
+    flex:1; appearance:none; border:0; background:transparent; color:var(--dim);
+    padding:8px 9px; font:inherit; font-size:12px; cursor:pointer; transition:.15s; white-space:nowrap;
+  }
+  .seg button.on{color:#04121a; background:linear-gradient(180deg,var(--acc),#49c9aa); font-weight:700}
+  .seg.v2 button.on{background:linear-gradient(180deg,var(--acc2),#7a4fe0); color:#fff}
+  .seg button:hover{color:var(--ink)}
+  .seg button.on:hover{color:#04121a}
+  .seg.v2 button.on:hover{color:#fff}
+
+  .knob{display:flex; align-items:center; gap:8px}
+  input[type=range]{
+    -webkit-appearance:none; appearance:none; width:108px; height:4px; border-radius:9px;
+    background:linear-gradient(90deg,var(--acc2),var(--acc)); outline:none;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; width:16px; height:16px; border-radius:50%;
+    background:#fff; cursor:pointer; box-shadow:0 0 0 4px rgba(122,240,208,.18);
+  }
+  input[type=range]::-moz-range-thumb{width:16px;height:16px;border:0;border-radius:50%;background:#fff;cursor:pointer}
+
+  .btn{
+    appearance:none; border:1px solid var(--line); border-radius:12px; cursor:pointer;
+    background:rgba(255,255,255,.04); color:var(--ink); font:inherit; padding:0 14px; min-width:48px;
+    display:flex; align-items:center; justify-content:center; gap:7px; transition:.15s; font-weight:600;
+  }
+  .btn:hover{background:rgba(255,255,255,.1); border-color:rgba(255,255,255,.18)}
+  .btn.primary{background:linear-gradient(180deg,var(--acc),#39bfa0); color:#04121a; border-color:transparent}
+  .btn.warn:hover{background:rgba(255,139,200,.16)}
+  .ico{font-size:16px; line-height:1}
+
+  /* Hint */
+  #hint{
+    position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); z-index:4; text-align:center;
+    color:var(--dim); pointer-events:none; transition:opacity .8s; max-width:80vw;
+  }
+  #hint h1{
+    margin:0 0 6px; font-size:clamp(26px,6vw,46px); letter-spacing:.16em; font-weight:800;
+    background:linear-gradient(90deg,var(--acc),var(--acc2),var(--acc3)); -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  #hint p{margin:4px 0; font-size:14px}
+  kbd{border:1px solid var(--line); border-bottom-width:2px; border-radius:6px; padding:1px 6px; color:var(--ink); font:inherit; font-size:12px}
+  .fade{opacity:0 !important}
+  @media (max-width:560px){ .ctl{min-width:0} input[type=range]{width:84px} .brand span{display:none} }
+</style>
+</head>
+<body>
+<canvas id="stage"></canvas>
+
+<header>
+  <div class="brand"><b>JAGANSHA&nbsp;RMA</b><span>sound garden</span></div>
+  <div class="spacer"></div>
+  <div class="pill">notes <b id="stat-notes">0</b></div>
+  <div class="pill">voices <b id="stat-voices">0</b></div>
+</header>
+
+<div id="hint">
+  <h1>SOUND&nbsp;GARDEN</h1>
+  <p>Click & drag anywhere to plant glowing notes.</p>
+  <p style="color:#5e679a">Press <kbd>Space</kbd> for auto-bloom · <kbd>C</kbd> clears the field</p>
+</div>
+
+<div id="dock">
+  <div class="ctl">
+    <label>Scale</label>
+    <div class="seg" id="seg-scale">
+      <button data-v="penta" class="on">Penta</button>
+      <button data-v="lydian">Lydian</button>
+      <button data-v="minor">Minor</button>
+      <button data-v="japan">Hirajoshi</button>
+    </div>
+  </div>
+  <div class="ctl">
+    <label>Voice</label>
+    <div class="seg v2" id="seg-voice">
+      <button data-v="glass" class="on">Glass</button>
+      <button data-v="pluck">Pluck</button>
+      <button data-v="pad">Pad</button>
+    </div>
+  </div>
+  <div class="ctl">
+    <label>Reverb <span id="lab-rev" style="color:var(--ink)"></span></label>
+    <div class="knob"><input id="rng-rev" type="range" min="0" max="100" value="55"></div>
+  </div>
+  <div class="ctl">
+    <label>Density <span id="lab-den" style="color:var(--ink)"></span></label>
+    <div class="knob"><input id="rng-den" type="range" min="0" max="100" value="40"></div>
+  </div>
+  <button class="btn primary" id="btn-auto" title="Auto-bloom (Space)"><span class="ico">▶</span><span id="lbl-auto">Auto</span></button>
+  <button class="btn warn" id="btn-clear" title="Clear (C)"><span class="ico">✕</span></button>
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+   JAGANSHA RMA — single-file generative ambient sound garden
+   Web Audio + Canvas, no dependencies.
+============================================================ */
+const cv = document.getElementById('stage');
+const ctx2d = cv.getContext('2d');
+let W=0,H=0,DPR=Math.min(2,window.devicePixelRatio||1);
+function resize(){
+  W=cv.clientWidth; H=cv.clientHeight;
+  cv.width=W*DPR; cv.height=H*DPR; ctx2d.setTransform(DPR,0,0,DPR,0,0);
+}
+window.addEventListener('resize',resize);
+cv.style.width='100%'; cv.style.height='100%'; resize();
+
+/* ---------- Audio engine ---------- */
+let AC=null, master=null, reverbGain=null, dryGain=null, conv=null, comp=null;
+let revAmount=0.55;
+function buildReverbIR(seconds=2.6, decay=2.4){
+  const rate=AC.sampleRate, len=Math.floor(rate*seconds);
+  const ir=AC.createBuffer(2,len,rate);
+  for(let c=0;c<2;c++){ const d=ir.getChannelData(c);
+    for(let i=0;i<len;i++){ d[i]=(Math.random()*2-1)*Math.pow(1-i/len,decay); } }
+  return ir;
+}
+function initAudio(){
+  if(AC) return;
+  AC=new (window.AudioContext||window.webkitAudioContext)();
+  master=AC.createGain(); master.gain.value=0.9;
+  comp=AC.createDynamicsCompressor();
+  comp.threshold.value=-18; comp.knee.value=24; comp.ratio.value=3.5;
+  comp.attack.value=.004; comp.release.value=.25;
+  conv=AC.createConvolver(); conv.buffer=buildReverbIR();
+  reverbGain=AC.createGain(); dryGain=AC.createGain();
+  setReverb(revAmount);
+  conv.connect(reverbGain);
+  reverbGain.connect(comp); dryGain.connect(comp);
+  comp.connect(master); master.connect(AC.destination);
+}
+function setReverb(a){ revAmount=a; if(!AC) return;
+  reverbGain.gain.value=a; dryGain.gain.value=1-0.55*a; }
+
+/* Scales (semitone offsets) + base */
+const SCALES={
+  penta:[0,3,5,7,10],
+  lydian:[0,2,4,6,7,9,11],
+  minor:[0,2,3,5,7,8,10],
+  japan:[0,2,3,7,8],     // Hirajoshi
+};
+let scaleName='penta', voice='glass';
+const BASE=220; // A3
+function midiToFreq(semi){ return BASE*Math.pow(2,semi/12); }
+// map a vertical position (0 top .. 1 bottom) to a pitch in current scale, low at bottom
+function pitchFromY(yNorm){
+  const scale=SCALES[scaleName]; const span=22; // semitone range
+  const inv=1-yNorm;
+  const idxF=inv*span; const oct=Math.floor(idxF/ (12)); // not exact but musical
+  const steps=scale.length;
+  const k=Math.round(inv*(steps*2.6));
+  const semi=scale[((k%steps)+steps)%steps] + 12*Math.floor(k/steps) - 12;
+  return midiToFreq(semi);
+}
+
+/* Voice presets -> returns gain peak & osc setup */
+function playNote(freq, vel=1, when=0){
+  if(!AC) return;
+  if(!isFinite(freq) || freq<=0) return;     // guard against degenerate layout
+  vel=isFinite(vel)?Math.max(0,Math.min(1.6,vel)):0.5;
+  const t=AC.currentTime+when;
+  const g=AC.createGain(); g.gain.value=0;
+  const pan=AC.createStereoPanner ? AC.createStereoPanner() : null;
+  if(pan){ pan.pan.value=(Math.random()*2-1)*0.6; g.connect(pan); pan.connect(dryGain); pan.connect(conv); }
+  else { g.connect(dryGain); g.connect(conv); }
+
+  let nodes=[];
+  if(voice==='glass'){
+    const o1=AC.createOscillator(), o2=AC.createOscillator();
+    o1.type='sine'; o2.type='sine'; o2.frequency.value=freq*2.01; o1.frequency.value=freq;
+    const o2g=AC.createGain(); o2g.gain.value=0.35; o2.connect(o2g); o2g.connect(g); o1.connect(g);
+    nodes=[o1,o2];
+    const a=0.01,d=0.35,s=0.0001,rel=2.8;
+    g.gain.setValueAtTime(0,t);
+    g.gain.linearRampToValueAtTime(0.5*vel,t+a);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+a+rel);
+    nodes.forEach(n=>{n.start(t); n.stop(t+a+rel+0.1);});
+  } else if(voice==='pluck'){
+    const o=AC.createOscillator(); o.type='triangle'; o.frequency.value=freq;
+    const lp=AC.createBiquadFilter(); lp.type='lowpass';
+    lp.frequency.setValueAtTime(4200,t); lp.frequency.exponentialRampToValueAtTime(600,t+0.5);
+    o.connect(lp); lp.connect(g); nodes=[o];
+    g.gain.setValueAtTime(0,t);
+    g.gain.linearRampToValueAtTime(0.55*vel,t+0.005);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+1.4);
+    o.start(t); o.stop(t+1.6);
+  } else { // pad
+    const o1=AC.createOscillator(), o2=AC.createOscillator(), o3=AC.createOscillator();
+    o1.type='sawtooth'; o2.type='sawtooth'; o3.type='sine';
+    o1.frequency.value=freq; o2.frequency.value=freq*1.005; o3.frequency.value=freq*0.5;
+    const lp=AC.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=1400; lp.Q.value=0.4;
+    [o1,o2,o3].forEach(o=>o.connect(lp)); lp.connect(g); nodes=[o1,o2,o3];
+    const rel=4.5;
+    g.gain.setValueAtTime(0,t);
+    g.gain.linearRampToValueAtTime(0.28*vel,t+0.6);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+rel);
+    nodes.forEach(n=>{n.start(t); n.stop(t+rel+0.1);});
+  }
+  activeVoices++;
+  setTimeout(()=>{activeVoices=Math.max(0,activeVoices-1);}, (voice==='pad'?4800:3000));
+}
+
+/* ---------- Visual field ---------- */
+const ripples=[]; // {x,y,r,max,life,hue,vel}
+const stars=[];
+for(let i=0;i<140;i++) stars.push({x:Math.random(),y:Math.random(),z:Math.random()*0.8+0.2,p:Math.random()*6.28});
+let noteCount=0, activeVoices=0;
+const HUES={penta:165,lydian:280,minor:210,japan:325};
+
+function plant(x,y,vel=1){
+  if(!AC){ initAudio(); }
+  if(AC && AC.state==='suspended') AC.resume();
+  const f=pitchFromY(y/H);
+  playNote(f, 0.55+vel*0.5);
+  const baseHue=HUES[scaleName];
+  ripples.push({
+    x,y,r:4,max:90+Math.random()*120+vel*120,life:1,
+    hue:baseHue+(1-y/H)*60-30+Math.random()*20,
+    width:1.5+vel*2
+  });
+  noteCount++;
+  document.getElementById('stat-notes').textContent=noteCount;
+}
+
+/* ---------- Auto-bloom generative sequencer ---------- */
+let autoOn=false, density=0.40, lastStep=0;
+function autoTick(now){
+  if(!autoOn) return;
+  // interval scales with density
+  const interval=180+(1-density)*900;
+  if(now-lastStep>interval){
+    lastStep=now;
+    // pick a point — favor melodic upper area with some spread
+    const gx=Math.random()*W;
+    const gy=H*(0.15+Math.random()*0.7);
+    plant(gx,gy, Math.random()*0.8);
+    // occasional chord
+    if(Math.random()<density*0.4){
+      setTimeout(()=>plant(gx+(Math.random()*120-60), gy-60-Math.random()*80, 0.4), 70);
+    }
+  }
+}
+
+/* ---------- Render loop ---------- */
+let t0=performance.now();
+function frame(now){
+  const dt=Math.min(40, now-t0)/1000; t0=now;
+  autoTick(now);
+
+  // fade trails
+  ctx2d.globalCompositeOperation='source-over';
+  ctx2d.fillStyle='rgba(5,6,13,0.20)';
+  ctx2d.fillRect(0,0,W,H);
+
+  // drifting stars
+  ctx2d.globalCompositeOperation='lighter';
+  for(const s of stars){
+    const x=s.x*W, y=s.y*H;
+    const tw=0.4+0.6*Math.abs(Math.sin(now*0.001+s.p));
+    ctx2d.fillStyle=`rgba(150,170,255,${0.10*tw*s.z})`;
+    const r=s.z*1.6;
+    ctx2d.beginPath(); ctx2d.arc(x,y,r,0,6.283); ctx2d.fill();
+  }
+
+  // ripples
+  for(let i=ripples.length-1;i>=0;i--){
+    const rp=ripples[i];
+    rp.r+=(rp.max-rp.r)*Math.min(1,dt*3.4);
+    rp.life-=dt*0.62;
+    if(rp.life<=0){ ripples.splice(i,1); continue; }
+    const a=Math.max(0,rp.life);
+    // core glow
+    const grd=ctx2d.createRadialGradient(rp.x,rp.y,0,rp.x,rp.y,Math.max(8,rp.r*0.5));
+    grd.addColorStop(0,`hsla(${rp.hue},90%,70%,${0.45*a})`);
+    grd.addColorStop(1,`hsla(${rp.hue},90%,60%,0)`);
+    ctx2d.fillStyle=grd;
+    ctx2d.beginPath(); ctx2d.arc(rp.x,rp.y,rp.r*0.5,0,6.283); ctx2d.fill();
+    // ring
+    ctx2d.strokeStyle=`hsla(${rp.hue},95%,72%,${0.55*a})`;
+    ctx2d.lineWidth=rp.width*a+0.4;
+    ctx2d.beginPath(); ctx2d.arc(rp.x,rp.y,rp.r,0,6.283); ctx2d.stroke();
+    // seed dot
+    ctx2d.fillStyle=`hsla(${rp.hue},95%,85%,${a})`;
+    ctx2d.beginPath(); ctx2d.arc(rp.x,rp.y,2.2+1.5*a,0,6.283); ctx2d.fill();
+  }
+  ctx2d.globalCompositeOperation='source-over';
+
+  document.getElementById('stat-voices').textContent=activeVoices;
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+/* ---------- Pointer interaction ---------- */
+let drawing=false, lastPlant=0, lastPt=null;
+function pointer(e){
+  const r=cv.getBoundingClientRect();
+  const x=(e.touches?e.touches[0].clientX:e.clientX)-r.left;
+  const y=(e.touches?e.touches[0].clientY:e.clientY)-r.top;
+  return {x,y};
+}
+function down(e){ e.preventDefault(); drawing=true; hideHint();
+  const p=pointer(e); plant(p.x,p.y,0.6); lastPt=p; lastPlant=performance.now(); }
+function move(e){ if(!drawing) return; e.preventDefault();
+  const now=performance.now(); if(now-lastPlant<90) return;
+  const p=pointer(e);
+  let vel=0.4; if(lastPt){ const d=Math.hypot(p.x-lastPt.x,p.y-lastPt.y); vel=Math.min(1,d/120); }
+  plant(p.x,p.y,vel); lastPt=p; lastPlant=now; }
+function up(){ drawing=false; lastPt=null; }
+cv.addEventListener('mousedown',down); window.addEventListener('mousemove',move); window.addEventListener('mouseup',up);
+cv.addEventListener('touchstart',down,{passive:false}); cv.addEventListener('touchmove',move,{passive:false}); window.addEventListener('touchend',up);
+
+/* ---------- Hint ---------- */
+let hintGone=false;
+function hideHint(){ if(hintGone) return; hintGone=true; document.getElementById('hint').classList.add('fade'); }
+
+/* ---------- Controls ---------- */
+function segWire(id,cb){
+  const seg=document.getElementById(id);
+  seg.addEventListener('click',e=>{
+    const b=e.target.closest('button'); if(!b) return;
+    [...seg.children].forEach(c=>c.classList.remove('on')); b.classList.add('on');
+    cb(b.dataset.v);
+  });
+}
+segWire('seg-scale',v=>scaleName=v);
+segWire('seg-voice',v=>voice=v);
+
+const rngRev=document.getElementById('rng-rev'), labRev=document.getElementById('lab-rev');
+function updRev(){ const v=+rngRev.value/100; initAudio(); setReverb(v); labRev.textContent=Math.round(v*100)+'%'; }
+rngRev.addEventListener('input',updRev); labRev.textContent='55%';
+
+const rngDen=document.getElementById('rng-den'), labDen=document.getElementById('lab-den');
+function updDen(){ density=+rngDen.value/100; labDen.textContent=Math.round(density*100)+'%'; }
+rngDen.addEventListener('input',updDen); labDen.textContent='40%';
+
+const btnAuto=document.getElementById('btn-auto'), lblAuto=document.getElementById('lbl-auto');
+function toggleAuto(){
+  initAudio(); if(AC && AC.state==='suspended') AC.resume();
+  autoOn=!autoOn; hideHint();
+  btnAuto.classList.toggle('primary',autoOn);
+  btnAuto.querySelector('.ico').textContent=autoOn?'❚❚':'▶';
+  lblAuto.textContent=autoOn?'Bloom':'Auto';
+}
+btnAuto.addEventListener('click',toggleAuto);
+
+document.getElementById('btn-clear').addEventListener('click',()=>{ ripples.length=0; });
+
+/* ---------- Keyboard ---------- */
+window.addEventListener('keydown',e=>{
+  if(e.code==='Space'){ e.preventDefault(); toggleAuto(); }
+  else if(e.key==='c'||e.key==='C'){ ripples.length=0; }
+});
+
+/* Auto-hide hint after a while even with no input */
+setTimeout(()=>{ if(!hintGone){ /* keep until interaction */ } }, 1);
+</script>
+</body>
+</html>
